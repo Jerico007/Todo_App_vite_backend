@@ -69,7 +69,7 @@ app.use(
     cookie:{
     sameSite : "none",
     secure: true,
-    domain: "myapp.vercel.app",
+    domain: "https://todo-app-vite-frontend.vercel.app",
     httpOnly: true
     }
   })
