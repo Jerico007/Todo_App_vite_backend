@@ -66,9 +66,6 @@ app.use(
     store: store,
     resave: false,
     saveUninitialized: false,
-    cookie:{
-      sameSite:false
-    }
   })
 );
 
