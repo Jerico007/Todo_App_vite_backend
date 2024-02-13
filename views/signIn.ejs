@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: Georgia, 'Times New Roman', Times, serif;
+      }
+
+      body {
+        background-color: rgb(136, 136, 211);
+      }
+
+      h1 {
+        text-align: center;
+        color: white;
+      }
+
+      .form-holder {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 90vh;
+      }
+
+      form {
+        display: flex;
+        flex-direction: column;
+        gap: 2vh;
+        align-items: center;
+        font-size: 1.5rem;
+      }
+
+     
+      form > input {
+        border-radius: 5px;
+        border: none;
+        font-size: 1rem;
+        padding: 1rem;
+        outline: none;
+        width: 50vw;
+      }
+
+      form > button {
+        padding: 1rem;
+        font-size: 17px;
+        border-radius: 4px;
+        border: none;
+        cursor: pointer;
+      }
+
+      form > button:hover {
+        background-color: pink;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Sign Up</h1>
+    <div class="form-holder">
+      <form action="/signUp" method="post">
+        <input
+          type="text"
+          id="name"
+          placeholder="Enter Name"
+          name="name"
+          pattern="[a-zA-z ]*"
+          title="Only Alphabets accepted"
+          required
+        />
+
+        <input type="email" id="email" placeholder="Email@xyz.com" name="email" required />
+
+        <input type="text" id="user-name" placeholder="User Name like user_23" name="userName" required />
+
+        <input
+          type="password"
+          id="password"
+          name="password"
+          placeholder="Password from 0-9 of minimum length 4 or above"
+          pattern="[0-9]{4,}"
+          title="from 0 to 9 minimum 4 numbers"
+          required
+        />
+        <button type="submit">Submit</button>
+      </form>
+    </div>
+  </body>
+</html>
