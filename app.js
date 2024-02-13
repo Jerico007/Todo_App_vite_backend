@@ -66,6 +66,12 @@ app.use(
     store: store,
     resave: false,
     saveUninitialized: false,
+    cookie:{
+    sameSite : "none",
+    secure: true,
+    domain: "myapp.vercel.app",
+    httpOnly: true
+    }
   })
 );
 
