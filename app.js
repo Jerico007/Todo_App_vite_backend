@@ -5,6 +5,7 @@ const express = require("express");
 require("dotenv").config();
 const mongoose = require("mongoose");
 const PORT = process.env.PORT || 7999;
+const LIMIT = Number(process.env.LIMIT);
 const cors = require("cors");
 const cli = require("cli-color");
 const app = express();
@@ -12,11 +13,12 @@ const bcrypt = require("bcrypt");
 const validator = require("validator");
 // Session constants
 const session = require("express-session");
-
+const jwt = require("jsonwebtoken");
 
 const MongoDbStore = require("connect-mongodb-session")(session);
 // Middleware constants
 const isAuth = require("./Middlewares/isAuth");
+// const rateLimiting = require("./Middlewares/rateLimiting");
 
 const store = new MongoDbStore({
   uri: process.env.MONGO_URI,
@@ -37,8 +39,7 @@ const { authenticate } = require("./utils/authUtils");
 
 // todoUtils
 const todoChecks = require("./utils/TodoUtils");
-
-
+const rateLimiting = require("./Middlewares/rateLimiting");
 
 // Db connection
 mongoose
@@ -53,27 +54,27 @@ mongoose
 
 // Middleware
 
-app.use(cors({origin:"http://localhost:3000",credentials:true}));
+app.use(cors({ origin: "http://localhost:3000", credentials: true }));
 // Data conversion from urlencoded to object
 app.use(express.urlencoded({ extended: true }));
 // Data conversion from json body to object
 app.use(express.json());
+
+
 // session middleware
-app.use(
-  session({
-    key:"userId",
-    secret: process.env.SECRET,
-    store: store,
-    resave: false,
-    saveUninitialized: false,
-    cookie:{
-      httpOnly:false,
-      sameSite:false
-    }
-  })
-);
-
-
+// app.use(
+//   session({
+//     key: "userId",
+//     secret: process.env.SECRET,
+//     store: store,
+//     resave: false,
+//     saveUninitialized: false,
+//     cookie: {
+//       httpOnly: false,
+//       sameSite: false,
+//     },
+//   })
+// );
 
 // SignIn get request API
 // app.get("/signUp", (req, res) => {
@@ -89,7 +90,7 @@ app.use(
 app.post("/deletetodo", isAuth, async (req, res) => {
   const { todoId } = req.body;
 
-  const { userName } = req.session.userData;
+  const { userName } = req.userToken;
 
   try {
     const userDb = await TodoModal.findById({ _id: todoId });
@@ -127,7 +128,7 @@ app.post("/deletetodo", isAuth, async (req, res) => {
 app.post("/updateTodo", isAuth, async (req, res) => {
   const { updatedData, todoId } = req.body;
 
-  const { userName } = req.session.userData;
+  const { userName } = req.userToken;
 
   const { title, description, color } = updatedData;
 
@@ -173,28 +174,60 @@ app.post("/updateTodo", isAuth, async (req, res) => {
   }
 });
 
-// Read todo API get request
-app.get("/readtodo", isAuth, async (req, res) => {
-  const { userName } = req.session.userData;
+// Read todo paged API requests
+app.get("/readtodo/:page", isAuth, async (req, res) => {
+  const page = Number(req.params.page) || 0;
 
-  const userDb = await TodoModal.find({ userName: userName });
+  const SKIP = page;
 
-  if (!userDb) {
+  const { userName } = req.userToken;
+
+  try {
+    const userDb = await TodoModal.aggregate([
+      { $match: { userName: userName } },
+      { $skip: SKIP },
+      { $limit: LIMIT },
+    ]);
+
+    if (userDb.length === 0) {
+      return res.send({
+        data: {
+          status: 404,
+          message: "No Todo's available",
+        },
+      });
+    }
     return res.send({
-      status: 404,
-      message: "No Todo's were found",
+      status: 200,
+      data: userDb,
     });
+  } catch (err) {
+    return res.send({ status: 500, message: "Database Error", error: err });
   }
-
-  res.send({
-    status: 200,
-    message: "Data fetched successfully.",
-    data: userDb,
-  });
 });
 
+// Read todo API get request
+// app.get("/readtodo", isAuth, async (req, res) => {
+//   const { userName } = req.session.userData;
+
+//   const userDb = await TodoModal.find({ userName: userName });
+
+//   if (!userDb) {
+//     return res.send({
+//       status: 404,
+//       message: "No Todo's were found",
+//     });
+//   }
+
+//   res.send({
+//     status: 200,
+//     message: "Data fetched successfully.",
+//     data: userDb,
+//   });
+// });
+
 // Create todo API post request
-app.post("/createtodo", isAuth, async (req, res) => {
+app.post("/createtodo", isAuth,rateLimiting,async (req, res) => {
   const { title, description, color } = req.body;
 
   try {
@@ -213,7 +246,7 @@ app.post("/createtodo", isAuth, async (req, res) => {
       color: color.trim(),
       createdAt: Date.now(),
     },
-    userName: req.session.userData.userName,
+    userName: req.userToken.userName,
   });
 
   try {
@@ -233,14 +266,7 @@ app.post("/createtodo", isAuth, async (req, res) => {
   }
 });
 
-// Dashboard get request API
-app.get("/dashboard", isAuth, (req, res) => {
-  return res.send({
-    status: 200,
-    message: "Access granted",
-    isValid: true,
-  });
-});
+
 
 // Logout get request API
 app.get("/logOut", isAuth, async (req, res) => {
@@ -249,8 +275,8 @@ app.get("/logOut", isAuth, async (req, res) => {
 
   // Methode 2
   try {
-    const userName = req.session.userData.userName;
-    await sessionModal.deleteOne({ "session.userData.userName": userName });
+    // const userName = req.session.userData.userName;
+    // await sessionModal.deleteOne({ "session.userData.userName": userName });
     return res.send({ status: 200, message: "Logged out successfully!" });
   } catch (err) {
     return res.send({ status: 500, message: "Logout failed", error: err });
@@ -259,11 +285,10 @@ app.get("/logOut", isAuth, async (req, res) => {
 
 // Logout All get request API
 app.get("/logoutall", isAuth, async (req, res) => {
- 
-  const userName = req.session.userData.userName;
+  // const userName = req.session.userData.userName;
 
   try {
-    await sessionModal.deleteMany({ "session.userData.userName": userName });
+    // await sessionModal.deleteMany({ "session.userData.userName": userName });
     return res.send({
       status: 200,
       message: "Logged out from all devices.",
@@ -331,16 +356,26 @@ app.post("/signUp", async (req, res) => {
   // Saving user in the database
   try {
     const userData = await user.save();
-    req.session.isAuth = true;
-    req.session.userData = {
-      uid: userData._id,
-      userName: userData.userName,
-      email: userData.email,
-    };
+    const token =  jwt.sign(
+      {
+        uid: userData._id,
+        userName: userData.userName,
+        email: userData.email,
+      },
+      process.env.SECRET
+    );
+    // req.session.isAuth = true;
+    // req.session.userData = {
+    //   uid: userData._id,
+    //   userName: userData.userName,
+    //   email: userData.email,
+    // };
     return res.send({
       status: 201,
       message: "User created successfully",
-      data: userData,
+      data: {
+        token:token
+      },
     });
   } catch (err) {
     return res.send({
@@ -368,15 +403,24 @@ app.post("/logIn", async (req, res) => {
       const match = await bcrypt.compare(password, user.password);
 
       if (match) {
-        req.session.isAuth = true;
-        req.session.userData = {
+        // req.session.isAuth = true;
+        // req.session.userData = {
+        //   uid: user._id,
+        //   userName: user.userName,
+        //   email: user.email,
+        // };
+        const token = jwt.sign({
           uid: user._id,
           userName: user.userName,
-          email: user.email,
-        };
+          email: user.email
+        },process.env.SECRET);
+
         return res.send({
           status: 200,
           message: "User logged in successfully",
+          data: {
+            token:token
+          }
         });
       }
       return res.send({
@@ -385,25 +429,36 @@ app.post("/logIn", async (req, res) => {
       });
     } else {
       const user = await userModal.findOne({ userName: loginId });
+
       if (!user) {
         return res.send({
           status: 400,
           message: "User name not found",
         });
       }
-
+      
       const match = await bcrypt.compare(password, user.password);
 
       if (match) {
-        req.session.isAuth = true;
-        req.session.userData = {
+        // req.session.isAuth = true;
+        // req.session.userData = {
+        //   uid: user._id,
+        //   userName: user.userName,
+        //   email: user.email,
+        // };
+        
+        const token = jwt.sign({
           uid: user._id,
           userName: user.userName,
-          email: user.email,
-        };
+          email: user.email
+        },process.env.SECRET);
+      
         return res.send({
           status: 200,
           message: "User logged in successfully",
+          data: {
+            token:token
+          }
         });
       }
       return res.send({
