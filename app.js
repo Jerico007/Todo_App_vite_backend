@@ -54,7 +54,7 @@ mongoose
 
 // Middleware
 
-app.use(cors({ origin: "http://localhost:3000", credentials: true }));
+app.use(cors({ origin: "https://todo-app-vite-frontend.vercel.app", credentials: true }));
 // Data conversion from urlencoded to object
 app.use(express.urlencoded({ extended: true }));
 // Data conversion from json body to object
